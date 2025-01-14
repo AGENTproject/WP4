@@ -1,6 +1,7 @@
 library(ASRgenomics)
 library(data.table)
 library(R.utils)
+library(inline)
 library(vcfR)
 
 rm(list=ls())
@@ -99,7 +100,22 @@ geno.map <- cbind(hapmap$rs, paste0(geno.map[, 3], '/', geno.map[, 4]), geno.map
 colnames(geno.map) <- c('rs', 'alleles', 'chrom', 'pos', 'ref', 'alt')
 
 # call the C function to convert markers data into numeric notation effectively 
-geno.data <- snps_numeric_recoding(geno.data, geno.map[,5])
+# geno.data <- snps_numeric_recoding(geno.data, geno.map[,5])
+
+numeric.geno.data <- NULL
+
+# loop through the data frame in batches
+for (start_row in seq(1, nrow(geno.data), by = 15000)) {
+  
+  # define the end row for the current batch
+  end_row <- min(start_row + 15000 - 1, nrow(geno.data))
+  
+  numeric.geno.data <- rbind(numeric.geno.data, snps_numeric_recoding(geno.data[start_row:end_row,], geno.map[,5]))
+}
+
+geno.data <- numeric.geno.data
+rm(numeric.geno.data)
+
 rownames(geno.data) <- colnames(hapmap)[-c(1:11)]
 
 # filtering the genomic dataset

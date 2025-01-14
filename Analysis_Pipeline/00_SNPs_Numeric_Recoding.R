@@ -4,15 +4,15 @@ snps_numeric_recoding <- function(M, ref.allele) {
   "int i,j;
   
   // matrix dimentions
-  int r = asInteger(rowsNum);
-  int c = asInteger(colsNum);
+  int r = Rf_asInteger(rowsNum);
+  int c = Rf_asInteger(colsNum);
   
   // length of the matrix
   int length = r*c;
 
   // create matrix of integers with the same size as SNPsMatrix
   SEXP SNPsNum;
-  PROTECT(SNPsNum = allocMatrix(INTSXP, r, c));
+  PROTECT(SNPsNum = Rf_allocMatrix(INTSXP, r, c));
   
   // convert SNPs codes from the standard IUPAC code (single char) to 
   // numeric 0, 1, or 2 (use 1 for heterozygous and 2 for reference allele)
