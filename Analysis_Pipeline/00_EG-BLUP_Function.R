@@ -128,10 +128,21 @@ agend_egblup <- function(pheno.egblup, geno.egblup, MAF = 0, pred_mode = FALSE,
       M <- M[, !apply(M, 2, sd) == 0]
       
       Mnosig <- M[, -c(which(colnames(M) %in% sel_markers))]
-      freq.p <- (colSums(Mnosig == 1) + 1/2 * colSums(Mnosig == 0))/nrow(M)
       
-      P <- 2*(t(matrix(rep(freq.p,nrow(Mnosig)), ncol = nrow(Mnosig))) - 0.5)
-      Z <- Mnosig - P      
+      #' if all significant markers were monomorphic in the current subset
+      if (ncol(Mnosig) == 0) {
+        sig_markers <- NULL
+        
+        freq.p <- (colSums(M == 1) + 1/2 * colSums(M == 0))/nrow(M)
+        
+        P <- 2*(t(matrix(rep(freq.p,nrow(M)), ncol = nrow(M))) - 0.5)
+        Z <- M - P
+      } else {
+        freq.p <- (colSums(Mnosig == 1) + 1/2 * colSums(Mnosig == 0))/nrow(M)
+        
+        P <- 2*(t(matrix(rep(freq.p,nrow(Mnosig)), ncol = nrow(Mnosig))) - 0.5)
+        Z <- Mnosig - P      
+      }
     } else {
       #' remove monomorphic markers 
       M <- M[, !apply(M, 2, sd) == 0]
