@@ -1,3 +1,4 @@
+library(ASRgenomics)
 library(data.table)
 library(rlist) # used version: rlist_0.4.6.1
 library(BGLR)  # used version: BGLR_1.0.8
@@ -5,9 +6,7 @@ library(caret) # used version: caret_6.0-86
 library(parallel)
 library(tryCatchLog)
 library(adegenet)
-
-# https://vsni.co.uk/free-software/asrgenomics
-library(ASRgenomics)
+library(R.utils)
 
 # remove everything in the working environment
 rm(list = ls())
@@ -15,6 +14,9 @@ gc(reset = TRUE)
 
 # set working directory
 setwd('~/AGENT')
+
+Sys.setenv(OPENBLAS_NUM_THREADS="1")
+# Sys.setenv(R_MAX_VSIZE = "100G")
 
 # load the EG-BLUP GS modeling/prediction generic function
 source('00_EG-BLUP_Function.R')
