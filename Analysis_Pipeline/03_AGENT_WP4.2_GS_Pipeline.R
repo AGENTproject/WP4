@@ -256,7 +256,10 @@ for (env in unique(BLUE[, env_id])) {
     
     best_model <- rownames(test$groups[1,])
     write(paste("\nBest Model is:", best_model), file = output_file, append = TRUE)
-
+    
+    other_model <- rownames(test$groups)[which(!grepl("Climatic", rownames(test$groups)))[1]]
+    write(paste("\nThe other Model is:", other_model), file = output_file, append = TRUE)
+    
     end.time <- Sys.time()
     capture.output(round(end.time - start.time, 2), file = output_file, append = TRUE)
     
