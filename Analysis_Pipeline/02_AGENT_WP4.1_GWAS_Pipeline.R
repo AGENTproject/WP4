@@ -19,13 +19,19 @@ gc(reset = TRUE)
 # set working directory
 setwd('~/AGENT')
 
+# load input data imported via the Shiny interface (deprecated)
+# load('/home/rstudio/ShinyApps/agent/AGENT_T4_JOB_20230523224926.RData')
+
 # e.g., 4 for fixed value, or NA to use Gao et al. 2008 estimation
-gwas_lod <- 3.5
+gwas_lod <- 5.25
 
 run_stepwise  <- TRUE
 QTLome_submit <- TRUE
 
 crop <- 'Wheat' # Wheat or Barley (case sensitive!)
+
+traits <- c("DTH", "PLH", "TKW")
+#traits <- c("HT","FT","PH","TGW","leaf_rust","yellow_rust","Yield")
 
 outputs.folder <- paste0('WP4_Outputs/', crop)
 if (!file.exists(outputs.folder)) dir.create(outputs.folder)
@@ -146,9 +152,14 @@ if (is.na(gwas_lod)) {
   gwas_lod <- -log10(p) 
 }
 
-for (env in unique(BLUEs[, env_id])) {
-  for (trait in c('DTH', 'PLH', 'TKW')) {
+start.time <- Sys.time()
 
+for (env in unique(BLUEs[, env_id])) {
+  for (trait in traits) {
+
+    # env   <- 'IPK'
+    # trait <- 'DTH'
+    
     # filter to select the required records and columns only
     BLUE <- BLUEs[BLUEs[, env_id] == env, c(acc_id, trait)]
     
