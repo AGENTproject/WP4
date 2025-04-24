@@ -413,3 +413,29 @@ for (env in unique(BLUEs[, env_id])) {
 
 end.time <- Sys.time()
 (time.taken <- round(end.time - start.time, 2))
+
+### Summary Reporting ##########################################################
+
+outputs.folder <- paste0('./WP4_Outputs/', crop, '/')
+
+# get summary with all markers and their respective LOD for all genebanks
+# to be used to create a general Manhattan plot
+for (trait in traits) {
+  report <- data.frame()
+  for (env in unique(BLUEs[, env_id])) {
+    gwas.file <- paste0(outputs.folder, env, '_', trait, '_GWAS/GAPIT.Association.GWAS_Results.MLM.', trait, '.csv')
+    if (!file.exists(gwas.file)) next
+    temp <- read.csv(gwas.file)
+    if (nrow(report) == 0) { report <- temp[,1:3] }
+    temp$LOD <- -log10(temp$P.value)
+    temp <- temp[, c('LOD', 'Effect', 'MAF')]
+    colnames(temp) <- paste(env, trait, colnames(temp), sep = '.')
+    report <- cbind(report, temp)
+  }
+
+  marker_map <- report[, c(1:3)]
+  report <- round(report[, -c(1:3)], 3)
+  lod_cols <- seq(1, ncol(report), by = 3)
+  report <- cbind(marker_map, sig_marker = apply(report[, lod_cols], 1, function(row) ifelse(any(row > gwas_lod, na.rm = TRUE),1,0)), report)
+  write.csv(report, paste0('./WP4_Outputs/', crop, '/',crop, '_',trait,'_GWAS_Markers_Summary.csv'))
+}
