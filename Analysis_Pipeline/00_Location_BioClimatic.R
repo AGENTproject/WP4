@@ -48,7 +48,7 @@ avg_biovars <- aggregate(. ~ Latitude + Longitude, subset(biovars, select = -c(y
 acc_coords  <- pheno_acc[, c('Biosample', 'Latitude', 'Longitude')]
 acc_climate <- merge(acc_coords, avg_biovars, by = c('Latitude', 'Longitude'), all.x = TRUE, sort = FALSE)
 
-rownames(acc_climate) <- acc_climate$Biosample
-acc_climate <- acc_climate[, -c(1:3)]
+# rownames(acc_climate) <- acc_climate$Biosample
+# acc_climate <- acc_climate[, -c(1:3)]
 
 write.csv(acc_climate, paste0('./WP3_BLUEs_Inputs/', crop, '_climate_matrix.csv'))
