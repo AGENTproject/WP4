@@ -24,20 +24,24 @@ source('00_EG-BLUP_Function.R')
 ### Script Input Configuration #################################################
 
 crop  <- 'Wheat' # Wheat or Barley (case sensitive!)
-trait <- 'DTH'
-env   <- 'CREA'
+
+gs.output.folder <- paste0('WP4_Outputs/', crop, '/GS_Output')
+if (!file.exists(gs.output.folder)) dir.create(gs.output.folder)
+
+# imputed genotypic markers in hapmap file format
+marker_matrix <- paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '.csv.gz')
+marker_map    <- paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '_map.csv')
+
+pheno_file <- paste0('./WP3_BLUEs_Inputs/Final_', crop, '_with_Biosample_ID.csv')
 
 acc_id <- 'Biosample'  # column represents the AGENT ids
 env_id <- 'Institute'  # column represents the institute FAO code
 
-geno.file  <- paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '.csv.gz')
-map.file   <- paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '_map.csv')
-blues.file <- paste0('./WP3_BLUEs_Inputs/Final_', crop, '_with_Biosample_ID.csv')
-sig.marker <- paste0('./WP4_Outputs/', crop, '/sig_markers/', env, '_', trait, '_minimum_group_snps.csv')
+traits <- c("DTH", "PLH", "TKW")
+# traits <- c("HT", "FT", "PH", "TGW", "leaf_rust", "yellow_rust", "Yield")
 
-#' list of significant markers (e.g., GWAS or/and QTLome output)
-# sel_markers <- c('Chr6B:90649005:T:C', 'Chr3B:785438778:C:G', 'Chr4A:594007637:C:G')
-sel_markers <- read.csv(sig.marker)[[1]]
+# 2D matrix, genotype id in row names, and climate variable in col names
+climate_file <- paste0('./WP3_BLUEs_Inputs/', crop, '_climate_matrix.csv')
 
 #' define the number of the population structure clusters 
 cluster_no <- 4
@@ -58,33 +62,36 @@ best.MAF            <- 0.01
 
 models_accuracy <- data.frame(ncol(3))
 
-#' 2 cols data.frame (1st column is your genotype id, and 2nd column is trait)
-#' NOTE: only one line per entry (i.e., genotype id)!
-BLUE <- read.csv(blues.file)
-BLUE <- BLUE[BLUE[, env_id] == env, c(acc_id, trait)]
+SNPs.clean  <- as.data.frame(data.table::fread(marker_matrix))
+SNPs.map    <- read.csv(marker_map)
+BLUE        <- read.csv(pheno_file)
+acc.climate <- read.csv(climate_file)
 
-metadata <- read.csv(map.file)
+acc.climate <- acc.climate[!duplicated(acc.climate$Biosample),]
+rownames(acc.climate) <- acc.climate$Biosample
+acc.climate <- acc.climate[, -c(1:4)]
+acc.climate <- acc.climate[complete.cases(acc.climate),]
+
+### Reshape and impute markers data ############################################
+
+metadata <- SNPs.map[, 1:4]
+metadata$ref <- substr(metadata$alleles, 1, 1)
+metadata$minor <- substr(metadata$alleles, 3, 3)
 metadata$alleles <- NULL
 colnames(metadata) <- c('Marker', 'CHR', 'LOC', 'REF', 'ALT')
 
-geno.data <- as.data.frame(data.table::fread(file = geno.file))
-rownames(geno.data) <- geno.data[,1]
-geno.data <- geno.data[,-1]
+rownames(SNPs.clean) <- SNPs.clean[, 1]
+SNPs.clean <- SNPs.clean[, -1]
 
-# impute genotypic data (mean imputation)
-qc <- qc.filtering(M = as.matrix(geno.data), impute = TRUE, message = TRUE)
+qc <- ASRgenomics::qc.filtering(M = as.matrix(SNPs.clean), impute = TRUE, message = TRUE)
 
-geno.data <- cbind(metadata, t(qc$M.clean))
-rownames(geno.data) <- NULL
+SNPs.clean <- as.data.frame(t(qc$M.clean))
 
+SNPs.clean$Marker <- rownames(SNPs.clean)
+geno.data <- merge(metadata, SNPs.clean, by = "Marker", all.y = TRUE)
 
-#' subset phenotypic dataset to exclude entries with no genotypic data
-pheno.data <- merge(colnames(geno.data)[-c(1:5)], BLUE, by.x = 1, by.y = 1, all.x = TRUE, sort = FALSE)
-
-colnames(pheno.data) <- c('Genotype_Matrix', 'Trait')
-
-#' 2D matrix, genotype id in row names, and climate variable in col names
-acc.climate <- read.csv(paste0('./WP3_BLUEs_Inputs/', crop, '_climate_matrix.csv'), row.names = 1)
+rm(SNPs.clean, qc)
+gc()
 
 
 ### Climate matrix #############################################################
@@ -114,192 +121,217 @@ rm(penv)
 
 acc.groups <- read.csv(file = paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '_kinship_groups.csv'), row.names = 1)
 
+#' save intermediate results
 save.image(file = paste0('gs_', crop, '_inputs.RData'))
 
-#' restrict the pheno, geno, and groups to the accessions have coordinates/climatic data
-geno.data  <- geno.data[, c(1:5, which(colnames(geno.data) %in% colnames(penv1)))]
-pheno.data <- pheno.data[pheno.data[,1] %in% colnames(penv1),]
-acc.groups <- acc.groups[acc.groups[,1] %in% colnames(penv1),]
+### loop over env and traits ###################################################
 
-acc.climate <- penv1
+BLUE <- read.csv(paste0('./WP3_BLUEs_Inputs/Final_', crop, '_with_Biosample_ID.csv'))
 
+for (env in unique(BLUE[, env_id])) {
+  for (trait in traits) {
+    
+    # env   <- 'ICARDA' # unique(BLUE[, env_id])
+    # trait <- 'TKW'    # DTH, PLH, TKW
+    
+    #' load intermediate results
+    load(paste0('gs_', crop, '_inputs.RData'))
+    
+    all.geno.data <- geno.data
+    
+    gwas.file <- paste0('./WP4_Outputs/', crop, '/', env, '_', trait, '_GWAS/GAPIT.Association.Filter_GWAS_results.csv')
+    
+    if(!file.exists(gwas.file)) {
+      next
+    } else {
+      gwas_results <- read.csv(gwas.file, row.names = 1)
+    }
+    
+    #' list of significant markers (e.g., GWAS or/and QTLome output)
+    sel_markers <- gwas_results$SNP
+    
+    #' All entries with a given genotypic data:
+    pheno.data <- merge(colnames(geno.data)[-c(1:5)], BLUE[BLUE$Institute == env, c('Biosample', trait)],
+                        by.x = 1, by.y = 1, all.x = TRUE, sort = FALSE)
+    
+    colnames(pheno.data) <- c('Genotype_Matrix', 'Trait')
+    
+    #' restrict the pheno, geno, and groups to the accessions have coordinates/climatic data
+    geno.data  <- geno.data[, c(1:5, which(colnames(geno.data) %in% colnames(penv1)))]
+    pheno.data <- pheno.data[pheno.data[,1] %in% colnames(penv1),]
+    acc.groups <- acc.groups[acc.groups[,1] %in% colnames(penv1),]
+    
+    acc.climate <- penv1
+    
+    if (sum(!is.na(pheno.data$Trait)) == 0) {
+      next
+    }
+    
+    ### GS (Testing Models) ########################################################
+    start.time <- Sys.time()
+    
+    ### Model 0 (EGBLUP) ###########################################################
+    model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
+                                   groups = NULL, sig_markers = NULL, climate = NULL,
+                                   num.folds = test.num.folds, nIter = test.nIter, 
+                                   burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
+    
+    models_accuracy <- rbind(models_accuracy, model_accuracy)
+    
+    
+    ### Model 1 (Kinship split) ####################################################
+    model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
+                                   groups = acc.groups, sig_markers = NULL, climate = NULL,
+                                   num.folds = test.num.folds, nIter = test.nIter, 
+                                   burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
+    
+    models_accuracy <- rbind(models_accuracy, model_accuracy)
+    
+    
+    ### Model 2 (Fixing major markers) #############################################
+    model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
+                                   groups = NULL, sig_markers = sel_markers, climate = NULL,
+                                   num.folds = test.num.folds, nIter = test.nIter, 
+                                   burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
+    
+    models_accuracy <- rbind(models_accuracy, model_accuracy)
+    
+    
+    ### Model 3 (Climate matrix) ###################################################
+    model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
+                                   groups = NULL, sig_markers = NULL, climate = acc.climate,
+                                   num.folds = test.num.folds, nIter = test.nIter, 
+                                   burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
+    
+    models_accuracy <- rbind(models_accuracy, model_accuracy)
+    
+    
+    ### Model 4 (Kinship split + Fixing major markers) #############################
+    model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
+                                   groups = acc.groups, sig_markers = sel_markers, climate = NULL,
+                                   num.folds = test.num.folds, nIter = test.nIter, 
+                                   burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
+    
+    models_accuracy <- rbind(models_accuracy, model_accuracy)
+    
+    
+    ### Model 5 (Kinship split + Climate matrix) ###################################
+    model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
+                                   groups = acc.groups, sig_markers = NULL, climate = acc.climate,
+                                   num.folds = test.num.folds, nIter = test.nIter, 
+                                   burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
+    
+    models_accuracy <- rbind(models_accuracy, model_accuracy)
+    
+    
+    ### Model 6 (Fixing major markers + Climate matrix) ############################
+    model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
+                                   groups = NULL, sig_markers = sel_markers, climate = acc.climate,
+                                   num.folds = test.num.folds, nIter = test.nIter, 
+                                   burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
+    
+    models_accuracy <- rbind(models_accuracy, model_accuracy)
+    
+    
+    ### Model 7 (Kinship split + Fixing major markers + Climate matrix) ############
+    model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
+                                   groups = acc.groups, sig_markers = sel_markers, climate = acc.climate,
+                                   num.folds = test.num.folds, nIter = test.nIter, 
+                                   burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
+    
+    models_accuracy <- rbind(models_accuracy, model_accuracy)
 
-### GS (Testing Models) ########################################################
-start.time <- Sys.time()
+    ### Select Best Model ##########################################################
+    
+    output_file <- paste0(gs.output.folder, '/Best_Model_', crop, '_', env, '_', trait, '.txt')
+    write('Select Best Model:', file = output_file)
+    
+    capture.output(models_accuracy, file = output_file, append = TRUE)
+    
+    fit <- lm(cor ~ model, data = models_accuracy)
+    capture.output(anova(fit), file = output_file, append = TRUE)
+    
+    test <- agricolae::LSD.test(fit, 'model')
+    capture.output(test$groups, file = output_file, append = TRUE)
+    
+    best_model <- rownames(test$groups[1,])
+    write(paste("\nBest Model is:", best_model), file = output_file, append = TRUE)
 
-### Model 0 (EGBLUP) ###########################################################
-model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
-                               groups = NULL, sig_markers = NULL, climate = NULL,
-                               num.folds = test.num.folds, nIter = test.nIter, 
-                               burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
-
-models_accuracy <- rbind(models_accuracy, model_accuracy)
-
-
-### Model 1 (Kinship split) ####################################################
-model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
-                               groups = acc.groups, sig_markers = NULL, climate = NULL,
-                               num.folds = test.num.folds, nIter = test.nIter, 
-                               burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
-
-models_accuracy <- rbind(models_accuracy, model_accuracy)
-
-
-### Model 2 (Fixing major markers) #############################################
-model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
-                               groups = NULL, sig_markers = sel_markers, climate = NULL,
-                               num.folds = test.num.folds, nIter = test.nIter, 
-                               burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
-
-models_accuracy <- rbind(models_accuracy, model_accuracy)
-
-
-### Model 3 (Climate matrix) ###################################################
-model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
-                               groups = NULL, sig_markers = NULL, climate = acc.climate,
-                               num.folds = test.num.folds, nIter = test.nIter, 
-                               burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
-
-models_accuracy <- rbind(models_accuracy, model_accuracy)
-
-
-### Model 4 (Kinship split + Fixing major markers) #############################
-model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
-                               groups = acc.groups, sig_markers = sel_markers, climate = NULL,
-                               num.folds = test.num.folds, nIter = test.nIter, 
-                               burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
-
-models_accuracy <- rbind(models_accuracy, model_accuracy)
-
-
-### Model 5 (Kinship split + Climate matrix) ###################################
-model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
-                               groups = acc.groups, sig_markers = NULL, climate = acc.climate,
-                               num.folds = test.num.folds, nIter = test.nIter, 
-                               burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
-
-models_accuracy <- rbind(models_accuracy, model_accuracy)
-
-
-### Model 6 (Fixing major markers + Climate matrix) ############################
-model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
-                               groups = NULL, sig_markers = sel_markers, climate = acc.climate,
-                               num.folds = test.num.folds, nIter = test.nIter, 
-                               burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
-
-models_accuracy <- rbind(models_accuracy, model_accuracy)
-
-
-### Model 7 (Kinship split + Fixing major markers + Climate matrix) ############
-model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
-                               groups = acc.groups, sig_markers = sel_markers, climate = acc.climate,
-                               num.folds = test.num.folds, nIter = test.nIter, 
-                               burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
-
-models_accuracy <- rbind(models_accuracy, model_accuracy)
-
-end.time <- Sys.time()
-round(end.time - start.time, 2)
-
-### Select Best Model ##########################################################
-
-sink(paste0('./WP4_Outputs/', crop, '/', env, '_', trait, '_select_best_model.txt'))
-models_accuracy
-
-fit <- lm(cor ~ model, data = models_accuracy)
-anova(fit)
-
-test <- agricolae::LSD.test(fit, 'model')
-test$groups
-
-best_model <- rownames(test$groups[1,])
-writeLines(paste("\nBest Model is:", best_model))
-sink()
-
-
-### Get Best Model Predictions #################################################
-
-all.acc <- colnames(geno.data)[-c(1:5)]
-all.pheno.data <- data.frame(Genotype_Matrix = all.acc)
-all.pheno.data <- merge(all.pheno.data, pheno.data, by = 1, all.x = TRUE, sort = FALSE)
-
-
-if (startsWith(best_model, "Kinship")){
-  #' reshape the data.frame of allele data to match the required format for the df2genind function
-  geno.GD <- as.data.frame(t(geno.data[, -c(1:5)]))
-  colnames(geno.GD) <- geno.data[,1]
-  
-  #' convert the data.frame of allele data to a genind object (exclude non genetic data)
-  genind_obj <- adegenet::df2genind(geno.GD, ploidy = 1, ind.names = rownames(geno.GD), 
-                                    loc.names = colnames(geno.GD))
-  
-  #' cluster identification using successive K-means
-  #' you may need to increase your memory limit to avoid allocate vector error because of size
-  #' e.g., memory.limit(size = 32000)
-  cluster_obj <- adegenet::find.clusters(genind_obj, max.n.clust = cluster_no, 
-                                         n.pca = cluster_no + 1, n.clust = cluster_no)
-  
-  #' get the factor that giving group membership for each individual
-  acc.groups <- as.data.frame(cluster_obj$grp)
-  acc.groups <- cbind(rownames(acc.groups), acc.groups)
-  colnames(acc.groups) <- c("AGENT_ID", "group")
-  rownames(acc.groups) <- NULL
+    end.time <- Sys.time()
+    capture.output(round(end.time - start.time, 2), file = output_file, append = TRUE)
+    
+    write(paste("\nTotal number of BLUE values:", sum(!is.na(pheno.data$Trait))), file = output_file, append = TRUE)
+    
+    
+    ### Get Best Model Predictions #################################################
+    
+    start.time <- Sys.time()
+    
+    geno.data <- all.geno.data
+    all.acc <- colnames(geno.data)[-c(1:5)]
+    all.pheno.data <- data.frame(Genotype_Matrix = all.acc)
+    all.pheno.data <- merge(all.pheno.data, pheno.data, by = 1, all.x = TRUE, sort = FALSE)
+    
+    
+    ### Model 0 (EGBLUP) ###########################################################
+    if (best_model == 'EGBLUP') {
+      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                  groups = NULL, sig_markers = NULL, climate = NULL,
+                                  nIter = best.nIter, burnIn = best.burnIn)
+    }
+    
+    ### Model 1 (Kinship split) ####################################################
+    if (best_model == 'Kinship') {
+      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                  groups = acc.groups, sig_markers = NULL, climate = NULL,
+                                  nIter = best.nIter, burnIn = best.burnIn)
+    }
+    
+    ### Model 2 (Fixing major markers) #############################################
+    if (best_model == 'Fixing') {
+      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                  groups = NULL, sig_markers = sel_markers, climate = NULL,
+                                  nIter = best.nIter, burnIn = best.burnIn)
+    }
+    
+    ### Model 3 (Climate matrix) ###################################################
+    if (best_model == 'Climatic') {
+      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                  groups = NULL, sig_markers = NULL, climate = acc.climate,
+                                  nIter = best.nIter, burnIn = best.burnIn)
+    }
+    
+    ### Model 4 (Kinship split + Fixing major markers) #############################
+    if (best_model == 'Kinship+Fixing') {
+      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                  groups = acc.groups, sig_markers = sel_markers, climate = NULL,
+                                  nIter = best.nIter, burnIn = best.burnIn)
+    }
+    
+    ### Model 5 (Kinship split + Climate matrix) ###################################
+    if (best_model == 'Kinship+Climatic') {
+      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                  groups = acc.groups, sig_markers = NULL, climate = acc.climate,
+                                  nIter = best.nIter, burnIn = best.burnIn)
+    }
+    
+    ### Model 6 (Fixing major markers + Climate matrix) ############################
+    if (best_model == 'Fixing+Climatic') {
+      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                  groups = NULL, sig_markers = sel_markers, climate = acc.climate,
+                                  nIter = best.nIter, burnIn = best.burnIn)
+    }
+    
+    ### Model 7 ((Kinship split + Fixing major markers + Climate matrix) ###########
+    if (best_model == 'Kinship+Fixing+Climatic') {
+      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                  groups = acc.groups, sig_markers = sel_markers, climate = acc.climate,
+                                  nIter = best.nIter, burnIn = best.burnIn)
+    }
+    
+    end.time <- Sys.time()
+    round(end.time - start.time, 2)
+    
+    write.csv(predictions, file = paste0(gs.output.folder, '/Predictions_', crop, '_', trait, '_', env, '.csv'))
+  }
 }
-
-### Model 0 (EGBLUP) ###########################################################
-if (best_model == 'EGBLUP') {
-  predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                              groups = NULL, sig_markers = NULL, climate = NULL,
-                              nIter = best.nIter, burnIn = best.burnIn)
-}
-
-### Model 1 (Kinship split) ####################################################
-if (best_model == 'Kinship') {
-  predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                              groups = acc.groups, sig_markers = NULL, climate = NULL,
-                              nIter = best.nIter, burnIn = best.burnIn)
-}
-
-### Model 2 (Fixing major markers) #############################################
-if (best_model == 'Fixing') {
-  predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                              groups = NULL, sig_markers = sel_markers, climate = NULL,
-                              nIter = best.nIter, burnIn = best.burnIn)
-}
-
-### Model 3 (Climate matrix) ###################################################
-if (best_model == 'Climatic') {
-  predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                              groups = NULL, sig_markers = NULL, climate = acc.climate,
-                              nIter = best.nIter, burnIn = best.burnIn)
-}
-
-### Model 4 (Kinship split + Fixing major markers) #############################
-if (best_model == 'Kinship+Fixing') {
-  predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                              groups = acc.groups, sig_markers = sel_markers, climate = NULL,
-                              nIter = best.nIter, burnIn = best.burnIn)
-}
-
-### Model 5 (Kinship split + Climate matrix) ###################################
-if (best_model == 'Kinship+Climatic') {
-  predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                              groups = acc.groups, sig_markers = NULL, climate = acc.climate,
-                              nIter = best.nIter, burnIn = best.burnIn)
-}
-
-### Model 6 (Fixing major markers + Climate matrix) ############################
-if (best_model == 'Fixing+Climatic') {
-  predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                              groups = NULL, sig_markers = sel_markers, climate = acc.climate,
-                              nIter = best.nIter, burnIn = best.burnIn)
-}
-
-### Model 7 ((Kinship split + Fixing major markers + Climate matrix) ###########
-if (best_model == 'Kinship+Fixing+Climatic') {
-  predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                              groups = acc.groups, sig_markers = sel_markers, climate = acc.climate,
-                              nIter = best.nIter, burnIn = best.burnIn)
-}
-
-write.csv(predictions, file = paste0('./WP4_Outputs/', crop, '/', env, '_', trait, '_gs_predictions.csv'))
