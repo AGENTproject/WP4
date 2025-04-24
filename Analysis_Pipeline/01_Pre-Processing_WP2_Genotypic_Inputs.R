@@ -18,7 +18,7 @@ my.maf             <- 0.01
 my.heterozygosity  <- 1
 my.Fis             <- 1
 
-crop <- 'Barley' # Wheat or Barley (case sensitive!)
+crop <- 'Wheat' # Wheat or Barley (case sensitive!)
 
 # original VCF on FAIRDOM filtered by WP2 for presence rate >= 80% and MAF > 1%
 # this step was critical to reduce the size and enable this script to handle it
@@ -43,6 +43,7 @@ dst.file <- paste0('./AGENT_', crop, '_VCF_Assay/', basename(src.url))
 ids.file <- paste0('./AGENT_', crop, '_VCF_Assay/', ids.file)
 snp.file <- paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '.csv.gz')
 map.file <- paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '_map.csv')
+kin.file <- paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '_kinship.csv.gz')
 
 # download the filtered VCF file if it is not exists
 if (!file.exists(dst.file)) {
@@ -154,3 +155,14 @@ data.table::fwrite(geno.data, snp.file)
 # save the map in a normal csv file
 geno.map <- geno.map[geno.map$rs %in% colnames(geno.data),]
 write.csv(geno.map, map.file, row.names = FALSE)
+
+### Kinship matrix #############################################################
+
+geno.data <- as.data.frame(data.table::fread(file = snp.file))
+rownames(geno.data) <- geno.data[,1]
+geno.data <- geno.data[,-1]
+# View(geno.data[1:50,1:50])
+
+# calculate the kinship matrix
+kinship <- ASRgenomics::G.matrix(M = as.matrix(geno.data), method = 'VanRaden')$G
+write.csv(kinship, gzfile(kin.file))
