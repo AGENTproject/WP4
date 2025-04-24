@@ -4,6 +4,8 @@
 # load required libraries
 library(data.table)
 library(bigstep)
+library(tidyr)
+library(dplyr)
 
 # remotes::install_github("jiabowang/GAPIT")
 library(GAPIT)
@@ -487,3 +489,16 @@ for (env in unique(BLUEs[, env_id])) {
 }
 
 write.csv(df, paste0('./WP4_Outputs/', crop, '/', crop, '_sig_markers_subset.csv'))
+
+accession_cols <- colnames(df)[-c(1:9)]
+
+summary_df <- df %>%
+  select(trait, Effect, all_of(accession_cols)) %>%
+  pivot_longer(cols = all_of(accession_cols), names_to = "Accession", values_to = "Value") %>%
+  filter(Value == 2) %>%
+  group_by(Accession, trait) %>%
+  summarise(Sum_Effect = sum(Effect, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = trait, values_from = Sum_Effect, values_fill = 0)
+
+write.csv(summary_df, paste0('./WP4_Outputs/', crop, '/', crop, '_QTL_effects_per_accession.csv'))
+
