@@ -316,6 +316,7 @@ for (env in unique(BLUEs[, env_id])) {
     }
     
     # sub-genotypic matrix includes selected markers in the final stepwise model
+    data <- data[!duplicated(data$Taxa),]
     rownames(data) <- data[,1]
     data <- subset(data, select = sel_markers)
     
