@@ -245,7 +245,7 @@ for (env in unique(BLUEs[, env_id])) {
     ### QTLome Reporting ###########################################################
     # check if the candidate markers are already listed in QTLome or not yet
     
-    if (QTLome_submit && !is.null(sel_markers)) {
+    if (QTLome_submit && length(sel_markers) > 0) {
       # load QTLome file
       QTLome <- read.csv(qtlome.file)
       
@@ -331,7 +331,7 @@ for (env in unique(BLUEs[, env_id])) {
     
     ### Minimum Subset #############################################################
     
-    if (!is.null(sel_markers)) {
+    if (length(sel_markers) > 0) {
       # minor (alternative) allele notation
       alt_code <- 0
       
