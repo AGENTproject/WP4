@@ -102,7 +102,10 @@ agend_egblup <- function(pheno.egblup, geno.egblup, MAF = 0, pred_mode = FALSE,
     dta.P <- Pheno
     
     #' exclude entries with missing value in the phenotypic data BLUEs
-    if(pred_mode == FALSE) { dta.P <- dta.P[!(is.na(dta.P$Trait)),] }
+    if (pred_mode == FALSE) { dta.P <- dta.P[!(is.na(dta.P$Trait)),] }
+    
+    #' if not enough phenotypic data point exists
+    if (length(dta.P[,'Trait']) < 2) { next }
     
     p <- as.matrix(dta.P[,'Trait'])
     
