@@ -4,6 +4,8 @@ library(R.utils)
 library(inline)
 library(vcfR)
 
+Sys.setenv(OPENBLAS_NUM_THREADS="8")
+
 rm(list=ls())
 gc(reset = TRUE)
 setwd('~/AGENT')
@@ -19,6 +21,7 @@ my.heterozygosity  <- 1
 my.Fis             <- 1
 
 crop <- 'Wheat' # Wheat or Barley (case sensitive!)
+cluster_no <- 4
 
 # original VCF on FAIRDOM filtered by WP2 for presence rate >= 80% and MAF > 1%
 # this step was critical to reduce the size and enable this script to handle it
@@ -44,6 +47,7 @@ ids.file <- paste0('./AGENT_', crop, '_VCF_Assay/', ids.file)
 snp.file <- paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '.csv.gz')
 map.file <- paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '_map.csv')
 kin.file <- paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '_kinship.csv.gz')
+grb.file <- paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '_kinship_groups.csv')
 
 # download the filtered VCF file if it is not exists
 if (!file.exists(dst.file)) {
@@ -128,23 +132,6 @@ M_filter <- ASRgenomics::qc.filtering(M      = as.matrix(geno.data),
                                       ind.callrate    = my.ind.callrate,
                                       heterozygosity  = my.heterozygosity)
 
-################################################################################
-# # read the id mapping metadata
-# ids <- read.csv(ids.file)
-# 
-# # use AGENT id when exists and IPK acc. number elsewhere (NA)
-# ids$ID <- ifelse(!is.na(ids$AGENT_ID), ids$AGENT_ID, ids$IPK_ACCENUMB)
-# 
-# # get the AGENT id mapped to the existing biosample id
-# AGENT_ID <- merge(rownames(M_filter$M.clean), ids, by.x = 1, by.y = 1, all.x = TRUE, sort = FALSE)$ID
-# 
-# # bind the agent ids as the first column in the filtered data.frame
-# geno.data <- cbind(AGENT_ID, M_filter$M.clean)
-# 
-# # remove duplicated samples for the same acc. id (first match)
-# geno.data <- geno.data[!duplicated(geno.data[,1]),]
-################################################################################
-
 # bind the BIOSAMPLE ids as the first column in the data.frame
 BIOSAMPLE_ID <- rownames(M_filter$M.clean)
 geno.data <- cbind(BIOSAMPLE_ID, M_filter$M.clean)
@@ -155,6 +142,33 @@ data.table::fwrite(geno.data, snp.file)
 # save the map in a normal csv file
 geno.map <- geno.map[geno.map$rs %in% colnames(geno.data),]
 write.csv(geno.map, map.file, row.names = FALSE)
+
+
+### Kinship split ##############################################################
+
+#' reshape the data.frame of allele data to match the required format for the df2genind function
+geno.GD <- as.data.frame(M_filter$M.clean)
+
+#' convert the data.frame of allele data to a genind object (exclude non genetic data)
+genind_obj <- adegenet::df2genind(geno.GD, ploidy = 1, ind.names = rownames(geno.GD), loc.names = colnames(geno.GD))
+
+#' cluster identification using successive K-means
+#' you may need to increase your memory limit to avoid allocate vector error because of size
+#' e.g., memory.limit(size = 32000) or Sys.setenv(R_MAX_VSIZE = "100G")
+cluster_obj <- adegenet::find.clusters(genind_obj, max.n.clust = cluster_no, n.pca = cluster_no + 1, n.clust = cluster_no)
+
+#' get the factor that giving group membership for each individual
+acc.groups <- as.data.frame(cluster_obj$grp)
+acc.groups <- cbind(rownames(acc.groups), acc.groups)
+colnames(acc.groups) <- c("AGENT_ID", "group")
+rownames(acc.groups) <- NULL
+
+write.csv(acc.groups, file = grb.file)
+
+#' garbage collecting
+rm(genind_obj, cluster_obj, geno.GD)
+gc()
+
 
 ### Kinship matrix #############################################################
 
