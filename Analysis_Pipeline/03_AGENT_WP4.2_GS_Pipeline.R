@@ -87,31 +87,6 @@ colnames(pheno.data) <- c('Genotype_Matrix', 'Trait')
 acc.climate <- read.csv(paste0('./WP3_BLUEs_Inputs/', crop, '_climate_matrix.csv'), row.names = 1)
 
 
-### Kinship split ##############################################################
-
-#' subset SNPs data to match only accesssions with pheno.data
-geno.GD <- as.data.frame(t(geno.data[, c(which(colnames(geno.data) %in% BLUE[,1]))]))
-colnames(geno.GD) <- geno.data[,1]
-
-#' convert the data.frame of allele data to a genind object (exclude non genetic data)
-genind_obj <- adegenet::df2genind(geno.GD, ploidy = 1, ind.names = rownames(geno.GD), 
-                                  loc.names = colnames(geno.GD))
-
-#' cluster identification using successive K-means
-#' you may need to increase your memory limit to avoid allocate vector error because of size
-#' e.g., memory.limit(size = 32000)
-cluster_obj <- adegenet::find.clusters(genind_obj, max.n.clust = cluster_no, 
-                                       n.pca = cluster_no + 1, n.clust = cluster_no)
-
-#' get the factor that giving group membership for each individual
-acc.groups <- as.data.frame(cluster_obj$grp)
-acc.groups <- cbind(rownames(acc.groups), acc.groups)
-colnames(acc.groups) <- c("AGENT_ID", "group")
-rownames(acc.groups) <- NULL
-
-#' garbage collecting
-rm(genind_obj, cluster_obj)
-
 ### Climate matrix #############################################################
 
 #' scale climate indices, calculate distance, then similarity matrix between acc.
@@ -132,15 +107,21 @@ colnames(penv1) <- colnames(penv)
 
 penv1 <- as.matrix(penv1)
 
+#' garbage collecting
+rm(penv)
+
+### Kinship split ##############################################################
+
+acc.groups <- read.csv(file = paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '_kinship_groups.csv'), row.names = 1)
+
+save.image(file = paste0('gs_', crop, '_inputs.RData'))
+
 #' restrict the pheno, geno, and groups to the accessions have coordinates/climatic data
 geno.data  <- geno.data[, c(1:5, which(colnames(geno.data) %in% colnames(penv1)))]
 pheno.data <- pheno.data[pheno.data[,1] %in% colnames(penv1),]
 acc.groups <- acc.groups[acc.groups[,1] %in% colnames(penv1),]
 
 acc.climate <- penv1
-
-#' garbage collecting
-rm(penv, penv1)
 
 
 ### GS (Testing Models) ########################################################
