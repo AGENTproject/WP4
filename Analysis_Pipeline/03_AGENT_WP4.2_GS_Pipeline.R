@@ -278,66 +278,156 @@ for (env in unique(BLUE[, env_id])) {
     
     start.time <- Sys.time()
     
+    acc.groups <- read.csv(file = paste0('./AGENT_', crop, '_VCF_Assay/AGENT_', crop, '_kinship_groups.csv'), row.names = 1)
+    
+    output_file <- paste0(gs.output.folder, '/Best_Model_', crop, '_', env, '_', trait, '.txt')
+    
+    if(!file.exists(output_file)) {
+      next
+    }
+    
+    best_result <- readLines(output_file)
+    best_model  <- sub("^Best Model is: ", "", grep("^Best Model is: ", best_result, value = TRUE))
+    other_model <- sub("^The other Model is: ", "", grep("^The other Model is: ", best_result, value = TRUE))
+    
     geno.data <- all.geno.data
     all.acc <- colnames(geno.data)[-c(1:5)]
     all.pheno.data <- data.frame(Genotype_Matrix = all.acc)
     all.pheno.data <- merge(all.pheno.data, pheno.data, by = 1, all.x = TRUE, sort = FALSE)
     
+    acc.climate <- penv1
     
-    ### Model 0 (EGBLUP) ###########################################################
-    if (best_model == 'EGBLUP') {
-      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                                  groups = NULL, sig_markers = NULL, climate = NULL,
-                                  nIter = best.nIter, burnIn = best.burnIn)
-    }
-    
-    ### Model 1 (Kinship split) ####################################################
-    if (best_model == 'Kinship') {
-      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                                  groups = acc.groups, sig_markers = NULL, climate = NULL,
-                                  nIter = best.nIter, burnIn = best.burnIn)
-    }
-    
-    ### Model 2 (Fixing major markers) #############################################
-    if (best_model == 'Fixing') {
-      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                                  groups = NULL, sig_markers = sel_markers, climate = NULL,
-                                  nIter = best.nIter, burnIn = best.burnIn)
-    }
-    
-    ### Model 3 (Climate matrix) ###################################################
-    if (best_model == 'Climatic') {
-      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+    if (best_model == other_model) {
+      ### Model 0 (EGBLUP) ###########################################################
+      if (best_model == 'EGBLUP') {
+        predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                    groups = NULL, sig_markers = NULL, climate = NULL,
+                                    nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      ### Model 1 (Kinship split) ####################################################
+      if (best_model == 'Kinship') {
+        predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                    groups = acc.groups, sig_markers = NULL, climate = NULL,
+                                    nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      ### Model 2 (Fixing major markers) #############################################
+      if (best_model == 'Fixing') {
+        predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                    groups = NULL, sig_markers = sel_markers, climate = NULL,
+                                    nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      ### Model 3 (Climate matrix) ###################################################
+      if (best_model == 'Climatic') {
+        predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                    groups = NULL, sig_markers = NULL, climate = acc.climate,
+                                    nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      ### Model 4 (Kinship split + Fixing major markers) #############################
+      if (best_model == 'Kinship+Fixing') {
+        predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                    groups = acc.groups, sig_markers = sel_markers, climate = NULL,
+                                    nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      ### Model 5 (Kinship split + Climate matrix) ###################################
+      if (best_model == 'Kinship+Climatic') {
+        predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                    groups = acc.groups, sig_markers = NULL, climate = acc.climate,
+                                    nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      ### Model 6 (Fixing major markers + Climate matrix) ############################
+      if (best_model == 'Fixing+Climatic') {
+        predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                    groups = NULL, sig_markers = sel_markers, climate = acc.climate,
+                                    nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      ### Model 7 ((Kinship split + Fixing major markers + Climate matrix) ###########
+      if (best_model == 'Kinship+Fixing+Climatic') {
+        predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+                                    groups = acc.groups, sig_markers = sel_markers, climate = acc.climate,
+                                    nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      predictions$model <- best_model
+      
+    } else {
+      acc_with_climate    <- intersect(all.acc, rownames(acc.climate))
+      acc_without_climate <- setdiff(all.acc, acc_with_climate)
+      
+      best.geno.data  <- geno.data[, c(1:5, which(colnames(geno.data) %in% acc_with_climate))]
+      best.pheno.data <- all.pheno.data[all.pheno.data[,1] %in% acc_with_climate,]
+      best.acc.groups <- acc.groups[acc.groups[,1] %in% acc_with_climate,]
+      
+      other.geno.data  <- geno.data[, c(1:5, which(colnames(geno.data) %in% acc_without_climate))]
+      other.pheno.data <- all.pheno.data[all.pheno.data[,1] %in% acc_without_climate,]
+      other.acc.groups <- acc.groups[acc.groups[,1] %in% acc_without_climate,]
+      
+      ### Model 0 (EGBLUP) ###########################################################
+      if (other_model == 'EGBLUP') {
+        pred_other <- agend_egblup(other.pheno.data, other.geno.data, MAF = best.MAF, pred_mode = TRUE,
+                                   groups = NULL, sig_markers = NULL, climate = NULL,
+                                   nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      ### Model 1 (Kinship split) ####################################################
+      if (other_model == 'Kinship') {
+        pred_other <- agend_egblup(other.pheno.data, other.geno.data, MAF = best.MAF, pred_mode = TRUE,
+                                   groups = other.acc.groups, sig_markers = NULL, climate = NULL,
+                                   nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      ### Model 2 (Fixing major markers) #############################################
+      if (other_model == 'Fixing') {
+        pred_other <- agend_egblup(other.pheno.data, other.geno.data, MAF = best.MAF, pred_mode = TRUE,
+                                   groups = NULL, sig_markers = sel_markers, climate = NULL,
+                                   nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      ### Model 3 (Climate matrix) ###################################################
+      if (best_model == 'Climatic') {
+        pred_best <- agend_egblup(best.pheno.data, best.geno.data, MAF = best.MAF, pred_mode = TRUE,
                                   groups = NULL, sig_markers = NULL, climate = acc.climate,
                                   nIter = best.nIter, burnIn = best.burnIn)
-    }
-    
-    ### Model 4 (Kinship split + Fixing major markers) #############################
-    if (best_model == 'Kinship+Fixing') {
-      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                                  groups = acc.groups, sig_markers = sel_markers, climate = NULL,
+      }
+      
+      ### Model 4 (Kinship split + Fixing major markers) #############################
+      if (other_model == 'Kinship+Fixing') {
+        pred_other <- agend_egblup(other.pheno.data, other.geno.data, MAF = best.MAF, pred_mode = TRUE,
+                                   groups = other.acc.groups, sig_markers = sel_markers, climate = NULL,
+                                   nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      ### Model 5 (Kinship split + Climate matrix) ###################################
+      if (best_model == 'Kinship+Climatic') {
+        pred_best <- agend_egblup(best.pheno.data, best.geno.data, MAF = best.MAF, pred_mode = TRUE,
+                                  groups = best.acc.groups, sig_markers = NULL, climate = acc.climate,
                                   nIter = best.nIter, burnIn = best.burnIn)
-    }
-    
-    ### Model 5 (Kinship split + Climate matrix) ###################################
-    if (best_model == 'Kinship+Climatic') {
-      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                                  groups = acc.groups, sig_markers = NULL, climate = acc.climate,
-                                  nIter = best.nIter, burnIn = best.burnIn)
-    }
-    
-    ### Model 6 (Fixing major markers + Climate matrix) ############################
-    if (best_model == 'Fixing+Climatic') {
-      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
+      }
+      
+      ### Model 6 (Fixing major markers + Climate matrix) ############################
+      if (best_model == 'Fixing+Climatic') {
+        pred_best <- agend_egblup(best.pheno.data, best.geno.data, MAF = best.MAF, pred_mode = TRUE,
                                   groups = NULL, sig_markers = sel_markers, climate = acc.climate,
                                   nIter = best.nIter, burnIn = best.burnIn)
-    }
-    
-    ### Model 7 ((Kinship split + Fixing major markers + Climate matrix) ###########
-    if (best_model == 'Kinship+Fixing+Climatic') {
-      predictions <- agend_egblup(all.pheno.data, geno.data, MAF = best.MAF, pred_mode = TRUE, 
-                                  groups = acc.groups, sig_markers = sel_markers, climate = acc.climate,
+      }
+      
+      ### Model 7 ((Kinship split + Fixing major markers + Climate matrix) ###########
+      if (best_model == 'Kinship+Fixing+Climatic') {
+        pred_best <- agend_egblup(best.pheno.data, best.geno.data, MAF = best.MAF, pred_mode = TRUE,
+                                  groups = best.acc.groups, sig_markers = sel_markers, climate = acc.climate,
                                   nIter = best.nIter, burnIn = best.burnIn)
+      }
+      
+      pred_best$model  <- best_model
+      pred_other$model <- other_model
+      
+      predictions <- rbind(pred_best, pred_other)
     }
     
     end.time <- Sys.time()
