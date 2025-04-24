@@ -189,12 +189,14 @@ for (env in unique(BLUE[, env_id])) {
     
     
     ### Model 2 (Fixing major markers) #############################################
-    model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
-                                   groups = NULL, sig_markers = sel_markers, climate = NULL,
-                                   num.folds = test.num.folds, nIter = test.nIter, 
-                                   burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
-    
-    models_accuracy <- rbind(models_accuracy, model_accuracy)
+    if (length(sel_markers) > 0) {
+      model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
+                                     groups = NULL, sig_markers = sel_markers, climate = NULL,
+                                     num.folds = test.num.folds, nIter = test.nIter, 
+                                     burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
+      
+      models_accuracy <- rbind(models_accuracy, model_accuracy)
+    }
     
     
     ### Model 3 (Climate matrix) ###################################################
@@ -207,12 +209,14 @@ for (env in unique(BLUE[, env_id])) {
     
     
     ### Model 4 (Kinship split + Fixing major markers) #############################
-    model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
-                                   groups = acc.groups, sig_markers = sel_markers, climate = NULL,
-                                   num.folds = test.num.folds, nIter = test.nIter, 
-                                   burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
-    
-    models_accuracy <- rbind(models_accuracy, model_accuracy)
+    if (length(sel_markers) > 0) {
+      model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
+                                     groups = acc.groups, sig_markers = sel_markers, climate = NULL,
+                                     num.folds = test.num.folds, nIter = test.nIter, 
+                                     burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
+      
+      models_accuracy <- rbind(models_accuracy, model_accuracy)
+    }
     
     
     ### Model 5 (Kinship split + Climate matrix) ###################################
@@ -225,21 +229,25 @@ for (env in unique(BLUE[, env_id])) {
     
     
     ### Model 6 (Fixing major markers + Climate matrix) ############################
-    model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
-                                   groups = NULL, sig_markers = sel_markers, climate = acc.climate,
-                                   num.folds = test.num.folds, nIter = test.nIter, 
-                                   burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
-    
-    models_accuracy <- rbind(models_accuracy, model_accuracy)
+    if (length(sel_markers) > 0) {
+      model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
+                                     groups = NULL, sig_markers = sel_markers, climate = acc.climate,
+                                     num.folds = test.num.folds, nIter = test.nIter, 
+                                     burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
+      
+      models_accuracy <- rbind(models_accuracy, model_accuracy)
+    }
     
     
     ### Model 7 (Kinship split + Fixing major markers + Climate matrix) ############
-    model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
-                                   groups = acc.groups, sig_markers = sel_markers, climate = acc.climate,
-                                   num.folds = test.num.folds, nIter = test.nIter, 
-                                   burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
-    
-    models_accuracy <- rbind(models_accuracy, model_accuracy)
+    if (length(sel_markers) > 0) {
+      model_accuracy <- agend_egblup(pheno.data, geno.data, MAF = test.MAF, pred_mode = FALSE, 
+                                     groups = acc.groups, sig_markers = sel_markers, climate = acc.climate,
+                                     num.folds = test.num.folds, nIter = test.nIter, 
+                                     burnIn = test.burnIn, num.crossvalid = test.num.crossvalid)
+      
+      models_accuracy <- rbind(models_accuracy, model_accuracy)
+    }
 
     ### Select Best Model ##########################################################
     
