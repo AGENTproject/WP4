@@ -439,3 +439,51 @@ for (trait in traits) {
   report <- cbind(marker_map, sig_marker = apply(report[, lod_cols], 1, function(row) ifelse(any(row > gwas_lod, na.rm = TRUE),1,0)), report)
   write.csv(report, paste0('./WP4_Outputs/', crop, '/',crop, '_',trait,'_GWAS_Markers_Summary.csv'))
 }
+
+################################################################################
+
+markers <- as.data.frame(data.table::fread(file = geno.file))
+rownames(markers) <- markers[, 'BIOSAMPLE_ID']
+
+markers <- t(markers[rownames(markers) %in% BLUEs$Biosample, -1])
+
+df <- data.frame()
+
+for (env in unique(BLUEs[, env_id])) {
+  for (trait in traits) {
+    # env <- 'IPGR'
+    # trait <- 'DTH'
+
+    file_path <- paste0('./WP4_Outputs/', crop, '/sig_markers/', env, '_', trait, '_minimum_group_snps.csv')
+    if (!file.exists(file_path)) next
+
+    qtl <- read.csv(file_path)
+    qtl <- qtl[, c(1,4:6)]
+
+    qtl$env   <- env
+    qtl$trait <- trait
+
+    file_path <- paste0('./WP4_Outputs/', crop, '/', crop, '_', trait, '_GWAS_Markers_Summary.csv')
+    if (!file.exists(file_path)) next
+
+    gwas <- read.csv(file_path, row.names = 1)
+
+    params <- paste0(env, '.', trait, '.', c('LOD', 'Effect', 'MAF'))
+    if (!all(params %in% colnames(gwas))) next
+
+    gwas <- gwas[, c('SNP', params)]
+    colnames(gwas) <- c('rs.', 'LOD', 'Effect', 'MAF')
+
+    qtl <- merge(qtl, gwas, by = 'rs.')
+
+    if (nrow(qtl) == 1) {
+      temp <- cbind(qtl, t(markers[rownames(markers) == qtl$rs.,]))
+    } else {
+      temp <- merge(qtl, markers[rownames(markers) %in% qtl$rs.,], by.x = 'rs.', by.y = 0)
+    }
+
+    df <- rbind(df, temp)
+  }
+}
+
+write.csv(df, paste0('./WP4_Outputs/', crop, '/', crop, '_sig_markers_subset.csv'))
