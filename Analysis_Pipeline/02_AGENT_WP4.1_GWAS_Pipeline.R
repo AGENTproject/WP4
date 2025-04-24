@@ -410,3 +410,6 @@ for (env in unique(BLUEs[, env_id])) {
     }
   }
 }
+
+end.time <- Sys.time()
+(time.taken <- round(end.time - start.time, 2))
