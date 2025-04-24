@@ -192,6 +192,9 @@ for (env in unique(BLUEs[, env_id])) {
     geno.gwas  <- SNPs.clean[, c(1:11, which(colnames(SNPs.clean) %in% BLUE[,1]))]
     pheno.gwas <- BLUE[BLUE[,1] %in% colnames(geno.gwas),]
     
+    # skip if no enough data for GWAS analysis
+    if (nrow(pheno.gwas) < 10) next
+    
     geno.GD <- as.data.frame(t(geno.gwas[, -c(1:11)]))
     geno.GD <- cbind(colnames(geno.gwas)[-c(1:11)], geno.GD)
     colnames(geno.GD) <- c('taxa', geno.gwas[,1])
