@@ -1,8 +1,8 @@
-#' pheno.data: 'Genotype_Matrix', 'Trait'
-#' geno.data:  'Marker', 'CHR', 'LOC', 'REF', 'ALT', Genotypes..
-#' groups:     'AGENT_ID', 'group'
-#' sig_markers: 
-#' climate:
+#' @param pheno.data A data frame with two columns: \code{Genotype_Matrix} (character), the accession identifiers, and \code{Trait} (numeric), the phenotypic BLUE values. Use \code{NA} in \code{Trait} to indicate missing values to be predicted.
+#' @param geno.data A data frame with marker metadata in the first five columns: \code{Marker}, \code{CHR}, \code{LOC}, \code{REF}, and \code{ALT}, followed by genotypic values (coded as 0/1/2) for each accession. Rows represent markers; columns after the fifth represent accessions.
+#' @param groups A data frame with two columns: \code{AGENT_ID}, the accession identifiers (matching those in the phenotype and genotype data), and \code{group}, the corresponding group assignment obtained via clustering (e.g., from K-means on genotypic data).
+#' @param sig_markers A character vector of significant markers
+#' @param climate A numeric, symmetric, positive definite matrix representing the inverse of a scaled environmental similarity matrix between accessions. Typically derived from climate indices via Euclidean distance, scaling, and matrix regularization.
 
 agend_egblup <- function(pheno.egblup, geno.egblup, MAF = 0, pred_mode = FALSE, 
                          groups = NULL, sig_markers = NULL, climate = NULL,
