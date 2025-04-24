@@ -61,8 +61,8 @@ agend_egblup <- function(pheno.egblup, geno.egblup, MAF = 0, pred_mode = FALSE,
     
     #' Calculate frequencies of both alleles
     Freq <- data.frame(Freq[, c(1,2)],
-                       (rowMeans(Freq[, c(3:ncol(Freq))]))/2,
-                       1 - ((rowMeans(Freq[, c(3:ncol(Freq))]))/2))
+                       (rowMeans(Freq[, c(3:ncol(Freq))], na.rm = TRUE))/2,
+                       1 - ((rowMeans(Freq[, c(3:ncol(Freq))], na.rm = TRUE))/2))
     
     colnames(Freq) <- c('RowNo', 'Marker', 'freq.allele1', 'freq.allele2')
     f <- data.frame(Freq[,c(1,2)],c(1:nrow(Freq)))
