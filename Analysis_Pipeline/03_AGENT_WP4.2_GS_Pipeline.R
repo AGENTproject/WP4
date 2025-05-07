@@ -265,22 +265,26 @@ for (env in unique(BLUE[, env_id])) {
     
     capture.output(models_accuracy, file = output_file, append = TRUE)
     
-    fit <- lm(cor ~ model, data = models_accuracy)
-    capture.output(anova(fit), file = output_file, append = TRUE)
-    
-    test <- agricolae::LSD.test(fit, 'model')
-    capture.output(test$groups, file = output_file, append = TRUE)
-    
-    best_model <- rownames(test$groups[1,])
-    write(paste("\nBest Model is:", best_model), file = output_file, append = TRUE)
-    
-    other_model <- rownames(test$groups)[which(!grepl("Climatic", rownames(test$groups)))[1]]
-    write(paste("\nThe other Model is:", other_model), file = output_file, append = TRUE)
-    
-    end.time <- Sys.time()
-    capture.output(round(end.time - start.time, 2), file = output_file, append = TRUE)
-    
-    write(paste("\nTotal number of BLUE values:", sum(!is.na(pheno.data$Trait))), file = output_file, append = TRUE)
+    if (!all(is.na(models_accuracy$cor))) {
+      fit <- lm(cor ~ model, data = models_accuracy)
+      capture.output(anova(fit), file = output_file, append = TRUE)
+      
+      test <- agricolae::LSD.test(fit, 'model')
+      capture.output(test$groups, file = output_file, append = TRUE)
+      
+      best_model <- rownames(test$groups[1,])
+      write(paste("\nBest Model is:", best_model), file = output_file, append = TRUE)
+      
+      other_model <- rownames(test$groups)[which(!grepl("Climatic", rownames(test$groups)))[1]]
+      write(paste("\nThe other Model is:", other_model), file = output_file, append = TRUE)
+      
+      end.time <- Sys.time()
+      capture.output(round(end.time - start.time, 2), file = output_file, append = TRUE)
+      
+      write(paste("\nTotal number of BLUE values:", sum(!is.na(pheno.data$Trait))), file = output_file, append = TRUE)
+    } else {
+      unlink(output_file)
+    }
     
     
     ### Get Best Model Predictions #################################################
