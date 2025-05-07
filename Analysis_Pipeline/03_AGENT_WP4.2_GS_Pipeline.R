@@ -168,6 +168,11 @@ for (env in unique(BLUE[, env_id])) {
       next
     }
     
+    # no variance in observed data
+    if (sd(pheno.data$Trait, na.rm = TRUE) == 0) {
+      next
+    }
+    
     ### GS (Testing Models) ########################################################
     start.time <- Sys.time()
     
