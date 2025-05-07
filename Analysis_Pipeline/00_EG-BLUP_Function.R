@@ -271,6 +271,9 @@ agend_egblup <- function(pheno.egblup, geno.egblup, MAF = 0, pred_mode = FALSE,
       
       colnames(PredEB) <- c('Genotype_Matrix', 'Trait', 'pred.Trait', 'x', 'run', 'fold')
       
+      # no variance in observed data
+      if (sd(PredEB$Trait, na.rm = TRUE) == 0) { PredEB$pred.Trait = PredEB$Trait }
+      
       crossvalid_result <- aggregate(cbind(Trait, pred.Trait) ~ Genotype_Matrix, data = PredEB, FUN = mean)
       
       split_prediction[[split_num]]  <- crossvalid_result
