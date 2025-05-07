@@ -142,6 +142,7 @@ for (env in unique(BLUE[, env_id])) {
     gwas.file <- paste0('./WP4_Outputs/', crop, '/', env, '_', trait, '_GWAS/GAPIT.Association.Filter_GWAS_results.csv')
     
     if(!file.exists(gwas.file)) {
+      warning(paste(trait, "in", env, "has no gwas file"))
       next
     } else {
       gwas_results <- read.csv(gwas.file, row.names = 1)
@@ -165,11 +166,13 @@ for (env in unique(BLUE[, env_id])) {
     
     # not enough observation data
     if (sum(!is.na(pheno.data$Trait)) < 3) {
+      warning(paste(trait, "in", env, "has not enough obs.", sum(!is.na(pheno.data$Trait))))
       next
     }
     
     # no variance in observed data
     if (sd(pheno.data$Trait, na.rm = TRUE) == 0) {
+      warning(paste(trait, "in", env, "has no variance!"))
       next
     }
     
