@@ -163,7 +163,8 @@ for (env in unique(BLUE[, env_id])) {
     
     acc.climate <- penv1
     
-    if (sum(!is.na(pheno.data$Trait)) == 0) {
+    # not enough observation data
+    if (sum(!is.na(pheno.data$Trait)) < 3) {
       next
     }
     
